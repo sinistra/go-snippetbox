@@ -25,8 +25,16 @@ func (app *App) ShowSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Display a specific snippet (ID %d)...", id)
-
+	snippet, err := app.Database.GetSnippet(id)
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	if snippet == nil {
+		app.NotFound(w)
+		return
+	}
+	fmt.Fprint(w, snippet)
 }
 
 // Change the signature of our NewSnippet handler so it is defined as a method against *App.
