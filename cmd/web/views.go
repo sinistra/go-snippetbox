@@ -13,6 +13,7 @@ import (
 // to pass to our templates. For now this just contains the snippet data that we
 // want to display, which has the underling type *models.Snippet.
 type HTMLData struct {
+	Form     interface{}
 	Path     string
 	Snippet  *models.Snippet
 	Snippets []*models.Snippet
