@@ -3,17 +3,22 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"github.com/alexedwards/scs"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"net/http"
 	"sinistra/snippetbox/models"
+	"time"
 )
 
 func main() {
-
 	addr := flag.String("addr", ":4000", "HTTP network address")
 	dsn := flag.String("dsn", "root:root@/snippetbox?parseTime=true", "MySQL DSN")
 	htmlDir := flag.String("html-dir", "./ui/html", "Path to HTML templates")
+	// Define a new command-line flag for the session secret (a random key which
+	// will be used to encrypt and authenticate session cookies). It should be 32
+	// characters long.
+	//secret := flag.String("secret", "s6Nd%+pPbnzHbS*+9Pk8qGWhTzbpa@ge", "Secret key")
 	staticDir := flag.String("static-dir", "./ui/static", "Path to static assets")
 
 	flag.Parse()
@@ -26,10 +31,19 @@ func main() {
 	// before the main() function exits.
 	defer db.Close()
 
+	// Use the scs.NewCookieManager() function to initialize a new session manager,
+	// passing in the secret key as the parameter. Then we configure it so the
+	// session always expires after 12 hours and sessions are persisted across
+	// browser restarts.
+	sessionManager := scs.New()
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Persist = true
+
 	// Add the *staticDir value to our application dependencies.
 	app := &App{
 		Database:  &models.Database{db},
 		HTMLDir:   *htmlDir,
+		Sessions:  sessionManager,
 		StaticDir: *staticDir,
 	}
 

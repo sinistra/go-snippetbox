@@ -41,9 +41,22 @@ func (app *App) ShowSnippet(w http.ResponseWriter, r *http.Request) {
 		app.NotFound(w)
 		return
 	}
+
+	// Load the session data then use the PopString() method to retrieve the value
+	// for the "flash" key. PopString() also deletes the key and value from the
+	// session data, so it acts like a one-time fetch. If there is no matching
+	// key in the session data it will return the empty string. If you want to
+	// retrieve a string from the session and not delete it you should use the
+	// GetString() method instead.
+	session, _ := app.Sessions.Load(r.Context(), "flash")
+	flash := app.Sessions.PopString(session, "flash")
+	//io.WriteString(w, flash)
+
 	// Render the show.page.html template, passing in the snippet data wrapped in our HTMLData struct.
 	app.RenderHTML(w, r, "show.page.html", &HTMLData{
-		Snippet: snippet})
+		Snippet: snippet,
+		Flash:   flash,
+	})
 }
 
 func (app *App) CreateSnippet(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +91,16 @@ func (app *App) CreateSnippet(w http.ResponseWriter, r *http.Request) {
 		app.ServerError(w, err)
 		return
 	}
+
+	// Use session manager's Load() method to fetch the session data for the current
+	// request. If there's no existing session for the current user (or their
+	// session has expired) then a new, empty, session will be created. Any errors
+	// are deferred until the session is actually used.
+	session, _ := app.Sessions.Load(r.Context(), "flash")
+	// Use the PutString() method to add a string value ("Your snippet was saved
+	// successfully!") and the corresponding key ("flash") to the the session data.
+	app.Sessions.Put(session, "flash", "Your snippet was saved successfully!")
+
 	// If successful, send a 303 See Other response redirecting the user to the
 	// page with their new snippet.
 	http.Redirect(w, r, fmt.Sprintf("/snippet/%d", id), http.StatusSeeOther)
