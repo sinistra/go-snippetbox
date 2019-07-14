@@ -26,3 +26,7 @@ _testmain.go
 .idea/
 .vscode
 snippetbox
+
+// ignore tls folder - it contains https pem keys
+tls/
+

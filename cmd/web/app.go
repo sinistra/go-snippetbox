@@ -11,8 +11,11 @@ import (
 // Add a new StaticDir field to our application dependencies.
 
 type App struct {
+	Addr      string // Add an Addr field
 	Database  *models.Database
 	HTMLDir   string
 	Sessions  *scs.SessionManager
 	StaticDir string
+	TLSCert   string // Add a TLSCert field
+	TLSKey    string // Add a TLSKey field
 }

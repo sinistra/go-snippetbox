@@ -6,7 +6,6 @@ import (
 	"github.com/alexedwards/scs"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
-	"net/http"
 	"sinistra/snippetbox/models"
 	"time"
 )
@@ -20,6 +19,8 @@ func main() {
 	// characters long.
 	//secret := flag.String("secret", "s6Nd%+pPbnzHbS*+9Pk8qGWhTzbpa@ge", "Secret key")
 	staticDir := flag.String("static-dir", "./ui/static", "Path to static assets")
+	tlsCert := flag.String("tls-cert", "./tls/cert.pem", "Path to TLS certificate")
+	tlsKey := flag.String("tls-key", "./tls/key.pem", "Path to TLS key")
 
 	flag.Parse()
 
@@ -41,18 +42,20 @@ func main() {
 
 	// Add the *staticDir value to our application dependencies.
 	app := &App{
+		Addr:      *addr,
 		Database:  &models.Database{db},
 		HTMLDir:   *htmlDir,
 		Sessions:  sessionManager,
 		StaticDir: *staticDir,
+		TLSCert:   *tlsCert,
+		TLSKey:    *tlsKey,
 	}
 
 	// Pass the app.Routes() method (which returns a serve mux) to the
 	// http.ListenAndServe() function.
 
-	log.Printf("Starting server on %s", *addr)
-	err := http.ListenAndServe(*addr, app.Routes())
-	log.Fatal(err)
+	// Call the new RunServer() method to start the server.
+	app.RunServer()
 
 }
 
