@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/justinas/nosurf"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -13,11 +14,13 @@ import (
 // to pass to our templates. For now this just contains the snippet data that we
 // want to display, which has the underling type *models.Snippet.
 type HTMLData struct {
-	Flash    string
-	Form     interface{}
-	Path     string
-	Snippet  *models.Snippet
-	Snippets []*models.Snippet
+	CSRFToken string
+	Flash     string
+	Form      interface{}
+	LoggedIn  bool
+	Path      string
+	Snippet   *models.Snippet
+	Snippets  []*models.Snippet
 }
 
 // Create a humanDate function which returns a nicely formatted string
@@ -35,6 +38,17 @@ func (app *App) RenderHTML(w http.ResponseWriter, r *http.Request, page string, 
 	}
 	// Add the current request URL path to the data.
 	data.Path = r.URL.Path
+
+	// Always add the CSRF token to the data for our templates.
+	data.CSRFToken = nosurf.Token(r)
+
+	// Add the logged in status to the HTMLData.
+	var err error
+	data.LoggedIn = app.LoggedIn(r)
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
 
 	files := []string{
 		filepath.Join(app.HTMLDir, "base.html"),

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"sinistra/snippetbox/models"
 	"sinistra/snippetbox/pkg/forms"
 	"strconv"
 )
@@ -113,4 +115,114 @@ func (app *App) NewSnippet(w http.ResponseWriter, r *http.Request) {
 	app.RenderHTML(w, r, "new.page.html", &HTMLData{
 		Form: &forms.NewSnippet{},
 	})
+}
+
+func (app *App) SignupUser(w http.ResponseWriter, r *http.Request) {
+	app.RenderHTML(w, r, "signup.page.html", &HTMLData{
+		Form: &forms.SignupUser{},
+	})
+}
+
+func (app *App) CreateUser(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		app.ClientError(w, http.StatusBadRequest)
+		return
+	}
+
+	form := &forms.SignupUser{
+		Name:     r.PostForm.Get("name"),
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
+	}
+
+	if !form.Valid() {
+		app.RenderHTML(w, r, "signup.page.html", &HTMLData{Form: form})
+		return
+	}
+	fmt.Fprintln(w, "Create a new user...")
+
+	// Try to create a new user record in the database. If the email already exists
+	// add a failure message to the form and re-display the form.
+	err = app.Database.InsertUser(form.Name, form.Email, form.Password)
+	if err == models.ErrDuplicateEmail {
+		form.Failures["Email"] = "Address is already in use"
+		app.RenderHTML(w, r, "signup.page.html", &HTMLData{Form: form})
+		return
+	} else if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	// Otherwise, add a confirmation flash message to the session confirming that
+	// their signup worked and asking them to log in.
+	msg := "Your signup was successful. Please log in using your credentials."
+	session, err := app.Sessions.Load(context.Background(), "user")
+	err := session.Value("flash", msg)
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	// And redirect the user to the login page.
+	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+}
+
+func (app *App) LoginUser(w http.ResponseWriter, r *http.Request) {
+	session := app.Sessions.Load(r)
+	flash, err := session.PopString(w, "flash")
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	app.RenderHTML(w, r, "login.page.html", &HTMLData{Flash: flash,
+		Form: &forms.LoginUser{}})
+}
+
+func (app *App) VerifyUser(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		app.ClientError(w, http.StatusBadRequest)
+		return
+	}
+	form := &forms.LoginUser{
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
+	}
+	if !form.Valid() {
+		app.RenderHTML(w, r, "login.page.html", &HTMLData{Form: form})
+		return
+	}
+
+	// Check whether the credentials are valid. If they're not, add a generic error
+	// message to the form failures map, and re-display the login page.
+	currentUserID, err := app.Database.VerifyUser(form.Email, form.Password)
+	if err == models.ErrInvalidCredentials {
+		form.Failures["Generic"] = "Email or Password is incorrect"
+		app.RenderHTML(w, r, "login.page.html", &HTMLData{Form: form})
+		return
+	} else if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+
+	// Add the ID of the current user to the session, so that they are now 'logged // in'.
+	session := app.Sessions.Load(r)
+	err = session.PutInt(w, "currentUserID", currentUserID)
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	// Redirect the user to the Add Snippet page.
+	http.Redirect(w, r, "/snippet/new", http.StatusSeeOther)
+}
+
+func (app *App) LogoutUser(w http.ResponseWriter, r *http.Request) {
+	// Remove the currentUserID from the session data.
+	session := app.Sessions.Load(r)
+	err := session.Remove(w, "currentUserID")
+	if err != nil {
+		app.ServerError(w, err)
+		return
+	}
+	// Redirect the user to the homepage.
+	http.Redirect(w, r, "/", 303)
 }

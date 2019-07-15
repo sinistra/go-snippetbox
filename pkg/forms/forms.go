@@ -1,9 +1,12 @@
 package forms
 
 import (
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
+
+var rxEmail = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0]))")
 
 // Declare a struct to hold the form values (and also a map to hold any validation failure messages).
 type NewSnippet struct {
@@ -44,5 +47,45 @@ func (f *NewSnippet) Valid() bool {
 		f.Failures["Expires"] = "Expiry time must be 3600, 86400 or 31536000 seconds"
 	}
 	// If there are no failure messages, return true.
+	return len(f.Failures) == 0
+}
+
+type SignupUser struct {
+	Name     string
+	Email    string
+	Password string
+	Failures map[string]string
+}
+
+func (f *SignupUser) Valid() bool {
+	f.Failures = make(map[string]string)
+	if strings.TrimSpace(f.Name) == "" {
+		f.Failures["Name"] = "Name is required"
+	}
+	if strings.TrimSpace(f.Email) == "" {
+		f.Failures["Email"] = "Email is required"
+	} else if len(f.Email) > 254 || !rxEmail.MatchString(f.Email) {
+		f.Failures["Email"] = "Email is not a valid address"
+	}
+	if utf8.RuneCountInString(f.Password) < 8 {
+		f.Failures["Password"] = "Password cannot be shorter than 8 characters"
+	}
+	return len(f.Failures) == 0
+}
+
+type LoginUser struct {
+	Email    string
+	Password string
+	Failures map[string]string
+}
+
+func (f *LoginUser) Valid() bool {
+	f.Failures = make(map[string]string)
+	if strings.TrimSpace(f.Email) == "" {
+		f.Failures["Email"] = "Email is required"
+	}
+	if strings.TrimSpace(f.Password) == "" {
+		f.Failures["Password"] = "Password is required"
+	}
 	return len(f.Failures) == 0
 }

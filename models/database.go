@@ -2,6 +2,15 @@ package models
 
 import (
 	"database/sql"
+	"errors"
+	"github.com/go-sql-driver/mysql"
+	"golang.org/x/crypto/bcrypt"
+)
+
+// Create a new ErrInvalidCredentials error that we can return.
+var (
+	ErrDuplicateEmail     = errors.New("models: email address already in use")
+	ErrInvalidCredentials = errors.New("models: invalid user credentials")
 )
 
 // Declare a Database type (for now it's just an empty struct).
@@ -119,4 +128,49 @@ VALUES(?, ?, UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND))`
 	// The ID returned is of type int64, so we convert it to an int type for
 	// returning from our Insert function.
 	return int(id), nil
+}
+
+func (db *Database) InsertUser(name, email, password string) error {
+	// Create a bcrypt hash of the plain-text password.
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return err
+	}
+	stmt := `INSERT INTO users (name, email, password, created) VALUES(?, ?, ?, UTC_TIMESTAMP())`
+	// Insert the user details and hashed password into the users table. If there
+	// we type assert it to a *mysql.MySQLError object so we can check its
+	// specific error number. If it's error 1062 we return the ErrDuplicateEmail
+	// error instead of the one from MySQL.
+	_, err = db.Exec(stmt, name, email, string(hashedPassword))
+	if err != nil {
+		if err.(*mysql.MySQLError).Number == 1062 {
+			return ErrDuplicateEmail
+		}
+	}
+	return err
+}
+
+func (db *Database) VerifyUser(email, password string) (int, error) {
+	// Retrieve the id and hashed password associated with the given email. If no
+	// matching email exists, we return the ErrInvalidCredentials error.
+	var id int
+	var hashedPassword []byte
+
+	row := db.QueryRow("SELECT id, password FROM users WHERE email = ?", email)
+	err := row.Scan(&id, &hashedPassword)
+	if err == sql.ErrNoRows {
+		return 0, ErrInvalidCredentials
+	} else if err != nil {
+		return 0, err
+	}
+	// Check whether the hashed password and plain-text password provided match.
+	// If they don't, we return the ErrInvalidCredentials error.
+	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
+	if err == bcrypt.ErrMismatchedHashAndPassword {
+		return 0, ErrInvalidCredentials
+	} else if err != nil {
+		return 0, err
+	}
+	// Otherwise, the password is correct. Return the user ID.
+	return id, nil
 }
